@@ -1,0 +1,48 @@
+# LinguaBridge Local Requirements
+# Python 3.8+
+
+# Core ML Frameworks
+paddlepaddle>=3.0.0
+paddlenlp>=2.7.0
+
+# Alternative: PyTorch/HuggingFace (fallback for ARM compatibility)
+# torch>=2.0.0
+# transformers>=4.35.0
+
+# Data Processing
+numpy>=1.24.0
+pandas>=2.0.0
+jieba>=0.42.1
+sacremoses>=0.0.53
+
+# Model Utilities
+sentencepiece>=0.1.99
+protobuf>=3.20.0
+
+# File I/O
+h5py>=3.9.0
+pyyaml>=6.0
+
+# Progress & Logging
+tqdm>=4.65.0
+loguru>=0.7.0
+
+# GUI (Desktop App)
+tkinter  # Usually included with Python
+
+# API (Optional Web Service)
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.0.0
+
+# Validation & Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# Development Tools
+black>=23.0.0
+flake8>=6.0.0
+isort>=5.12.0
+
+# Performance Monitoring
+psutil>=5.9.0
