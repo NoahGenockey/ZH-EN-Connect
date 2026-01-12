@@ -2,12 +2,12 @@
 # Python 3.8+
 
 # Core ML Frameworks
-paddlepaddle>=3.0.0
-paddlenlp>=2.7.0
+# paddlepaddle>=3.0.0
+# paddlenlp>=2.7.0
 
-# Alternative: PyTorch/HuggingFace (fallback for ARM compatibility)
-# torch>=2.0.0
-# transformers>=4.35.0
+# PyTorch/HuggingFace (fallback for ARM compatibility and newer Python versions)
+torch>=2.0.0
+transformers>=4.35.0
 
 # Data Processing
 numpy>=1.24.0
@@ -28,7 +28,7 @@ tqdm>=4.65.0
 loguru>=0.7.0
 
 # GUI (Desktop App)
-tkinter  # Usually included with Python
+# tkinter  # Usually included with Python (not installable via pip)
 
 # API (Optional Web Service)
 fastapi>=0.104.0

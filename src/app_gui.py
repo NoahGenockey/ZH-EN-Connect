@@ -138,7 +138,7 @@ class TranslationApp:
         
         # Initialize main window
         self.root = tk.Tk()
-        self.root.title(self.gui_config.get('title', 'LinguaBridge Local'))
+        self.root.title("LinguaBridge Local - EN↔ZH Translation")
         self.root.geometry(f"{self.gui_config.get('width', 800)}x{self.gui_config.get('height', 600)}")
         
         # Initialize inference engine (lazy loading)
@@ -166,25 +166,49 @@ class TranslationApp:
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(1, weight=1)
-        main_frame.rowconfigure(3, weight=1)
+        main_frame.rowconfigure(2, weight=1)
+        main_frame.rowconfigure(4, weight=1)
         
         # Title
         title_label = ttk.Label(
             main_frame,
-            text="🌉 LinguaBridge Local - English to Chinese Translation",
+            text="🌉 LinguaBridge Local - Bidirectional EN↔ZH Translation",
             font=('Arial', 16, 'bold')
         )
         title_label.grid(row=0, column=0, pady=(0, 10), sticky=tk.W)
         
+        # Direction selector
+        direction_frame = ttk.Frame(main_frame)
+        direction_frame.grid(row=1, column=0, pady=(0, 10), sticky=tk.W)
+        
+        ttk.Label(direction_frame, text="Direction:", font=('Arial', 10)).pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.direction_var = tk.StringVar(value='en-zh')
+        
+        ttk.Radiobutton(
+            direction_frame,
+            text="EN → ZH",
+            variable=self.direction_var,
+            value='en-zh',
+            command=self.update_labels
+        ).pack(side=tk.LEFT, padx=5)
+        
+        ttk.Radiobutton(
+            direction_frame,
+            text="ZH → EN",
+            variable=self.direction_var,
+            value='zh-en',
+            command=self.update_labels
+        ).pack(side=tk.LEFT, padx=5)
+        
         # Input section
-        input_frame = ttk.LabelFrame(main_frame, text="English Input", padding="5")
-        input_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
-        input_frame.columnconfigure(0, weight=1)
-        input_frame.rowconfigure(0, weight=1)
+        self.input_label_frame = ttk.LabelFrame(main_frame, text="English Input", padding="5")
+        self.input_label_frame.grid(row=2, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
+        self.input_label_frame.columnconfigure(0, weight=1)
+        self.input_label_frame.rowconfigure(0, weight=1)
         
         self.input_text = scrolledtext.ScrolledText(
-            input_frame,
+            self.input_label_frame,
             wrap=tk.WORD,
             width=60,
             height=10,
@@ -194,7 +218,7 @@ class TranslationApp:
         
         # Control buttons
         button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=2, column=0, pady=10)
+        button_frame.grid(row=3, column=0, pady=10)
         
         self.translate_button = ttk.Button(
             button_frame,
@@ -219,13 +243,13 @@ class TranslationApp:
         self.copy_button.grid(row=0, column=2, padx=5)
         
         # Output section
-        output_frame = ttk.LabelFrame(main_frame, text="Chinese Translation", padding="5")
-        output_frame.grid(row=3, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
-        output_frame.columnconfigure(0, weight=1)
-        output_frame.rowconfigure(0, weight=1)
+        self.output_label_frame = ttk.LabelFrame(main_frame, text="Chinese Translation", padding="5")
+        self.output_label_frame.grid(row=4, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
+        self.output_label_frame.columnconfigure(0, weight=1)
+        self.output_label_frame.rowconfigure(0, weight=1)
         
         self.output_text = scrolledtext.ScrolledText(
-            output_frame,
+            self.output_label_frame,
             wrap=tk.WORD,
             width=60,
             height=10,
@@ -243,7 +267,7 @@ class TranslationApp:
             relief=tk.SUNKEN,
             anchor=tk.W
         )
-        status_bar.grid(row=4, column=0, sticky=(tk.W, tk.E))
+        status_bar.grid(row=5, column=0, sticky=(tk.W, tk.E))
         
         # Progress bar
         self.progress_bar = ttk.Progressbar(
@@ -300,8 +324,12 @@ class TranslationApp:
             messagebox.showwarning("Empty Input", "Please enter text to translate.")
             return
         
-        # Check cache
-        cached_result = self.cache.get(input_text)
+        # Get direction
+        direction = self.direction_var.get()
+        
+        # Check cache with direction
+        cache_key = f"{direction}:{input_text}"
+        cached_result = self.cache.get(cache_key)
         if cached_result:
             self.display_translation(cached_result)
             self.status_var.set("Translation retrieved from cache")
@@ -317,10 +345,10 @@ class TranslationApp:
         # Translate in background thread
         def translate():
             try:
-                translation = self.inference_engine.translate(input_text)
+                translation = self.inference_engine.translate(input_text, direction)
                 
                 # Cache result
-                self.cache.put(input_text, translation)
+                self.cache.put(cache_key, translation)
                 
                 # Update UI on main thread
                 self.root.after(0, lambda: self.on_translation_complete(translation))
@@ -376,6 +404,16 @@ class TranslationApp:
             self.status_var.set("Translation copied to clipboard")
         else:
             messagebox.showinfo("No Translation", "No translation to copy.")
+    
+    def update_labels(self):
+        """Update input/output labels based on selected direction."""
+        direction = self.direction_var.get()
+        if direction == 'en-zh':
+            self.input_label_frame.config(text="English Input")
+            self.output_label_frame.config(text="Chinese Translation")
+        else:
+            self.input_label_frame.config(text="Chinese Input")
+            self.output_label_frame.config(text="English Translation")
     
     def run(self):
         """Start the application."""

@@ -124,8 +124,14 @@ TROUBLESHOOTING:
 
 import os
 import numpy as np
-import paddle
-from paddlenlp.transformers import AutoModelForCausalLM, AutoTokenizer
+import torch
+from transformers import (
+    AutoModelForSeq2SeqLM, 
+    AutoModelForCausalLM, 
+    AutoTokenizer,
+    MarianMTModel,
+    MarianTokenizer
+)
 import logging
 from typing import List, Dict, Tuple, Optional
 import re
@@ -138,8 +144,8 @@ except ImportError:
 
 class TranslationInference:
     """
-    Inference engine for English-to-Chinese translation.
-    Handles model loading, text chunking, and translation.
+    Inference engine for bidirectional English-Chinese translation.
+    Handles model loading, text chunking, and translation in both directions.
     """
     
     def __init__(self, config: Dict):
@@ -153,56 +159,137 @@ class TranslationInference:
         self.inference_config = config['inference']
         self.logger = logging.getLogger('LinguaBridge.Inference')
         
-        # Set device to CPU for local deployment
-        self.device = 'cpu'
-        paddle.set_device(self.device)
+        # Set device - use GPU if available
+        if torch.cuda.is_available():
+            self.device = 'cuda'
+            self.logger.info(f"Using GPU: {torch.cuda.get_device_name(0)}")
+        else:
+            self.device = 'cpu'
+            self.logger.info("Using CPU (GPU not available)")
         
-        # Load model and vocabularies
-        self.load_model()
+        # Load models for both directions
+        self.load_models()
         self.load_vocabularies()
         
-        self.logger.info("Inference engine initialized")
+        self.logger.info("Inference engine initialized (bidirectional EN<->ZH)")
     
-    def load_model(self):
-        """Load the trained student model."""
-        self.logger.info("Loading translation model...")
-        
-        model_path = self.inference_config.get('model_path', 'models/student/final_model')
-        
-        # Handle both directory and .pdparams file
-        if model_path.endswith('.pdparams'):
-            model_dir = os.path.dirname(model_path)
-        else:
-            model_dir = model_path
-        
+    def load_models(self):
+        """Load translation models for all supported directions."""
+        self.logger.info("Loading translation models...")
+
+        # EN→ZH
+        en_zh_path = self.inference_config.get('model_path', 'models/student/final_model')
+        if en_zh_path.endswith('.pdparams'):
+            en_zh_path = os.path.dirname(en_zh_path)
+        self.model_en_zh = MarianMTModel.from_pretrained(en_zh_path)
+        self.tokenizer_en_zh = MarianTokenizer.from_pretrained(en_zh_path)
+        self.model_en_zh.to(self.device)
+        self.model_en_zh.eval()
+        self.logger.info(f"Loaded EN->ZH model from {en_zh_path}")
+
+        # ZH→EN
+        zh_en_path = self.inference_config.get('model_path_zh_en', 'Helsinki-NLP/opus-mt-zh-en')
         try:
-            self.model = AutoModelForCausalLM.from_pretrained(model_dir)
-            self.tokenizer = AutoTokenizer.from_pretrained(model_dir)
-            self.model.eval()  # Set to evaluation mode
-            self.logger.info(f"Model loaded from {model_dir}")
+            self.model_zh_en = MarianMTModel.from_pretrained(zh_en_path)
+            self.tokenizer_zh_en = MarianTokenizer.from_pretrained(zh_en_path)
+            self.model_zh_en.to(self.device)
+            self.model_zh_en.eval()
+            self.logger.info(f"Loaded ZH->EN model from {zh_en_path}")
         except Exception as e:
-            self.logger.error(f"Failed to load model: {e}")
-            raise
+            self.logger.warning(f"Could not load ZH->EN model: {e}")
+            self.logger.info("Downloading ZH→EN model...")
+            self.model_zh_en = MarianMTModel.from_pretrained('Helsinki-NLP/opus-mt-zh-en')
+            self.tokenizer_zh_en = MarianTokenizer.from_pretrained('Helsinki-NLP/opus-mt-zh-en')
+            self.model_zh_en.to(self.device)
+            self.model_zh_en.eval()
+            self.logger.info("ZH→EN model downloaded and loaded")
+
+        # EN→JA
+        en_ja_path = self.inference_config.get('model_path_en_ja', 'Helsinki-NLP/opus-mt-en-ja')
+        try:
+            self.model_en_ja = MarianMTModel.from_pretrained(en_ja_path)
+            self.tokenizer_en_ja = MarianTokenizer.from_pretrained(en_ja_path)
+            self.model_en_ja.to(self.device)
+            self.model_en_ja.eval()
+            self.logger.info(f"Loaded EN->JA model from {en_ja_path}")
+        except Exception as e:
+            self.logger.warning(f"Could not load EN->JA model: {e}")
+            self.logger.info("Downloading EN→JA model...")
+            self.model_en_ja = MarianMTModel.from_pretrained('Helsinki-NLP/opus-mt-en-ja')
+            self.tokenizer_en_ja = MarianTokenizer.from_pretrained('Helsinki-NLP/opus-mt-en-ja')
+            self.model_en_ja.to(self.device)
+            self.model_en_ja.eval()
+            self.logger.info("EN→JA model downloaded and loaded")
+
+        # JA→EN
+        ja_en_path = self.inference_config.get('model_path_ja_en', 'Helsinki-NLP/opus-mt-ja-en')
+        try:
+            self.model_ja_en = MarianMTModel.from_pretrained(ja_en_path)
+            self.tokenizer_ja_en = MarianTokenizer.from_pretrained(ja_en_path)
+            self.model_ja_en.to(self.device)
+            self.model_ja_en.eval()
+            self.logger.info(f"Loaded JA->EN model from {ja_en_path}")
+        except Exception as e:
+            self.logger.warning(f"Could not load JA->EN model: {e}")
+            self.logger.info("Downloading JA→EN model...")
+            self.model_ja_en = MarianMTModel.from_pretrained('Helsinki-NLP/opus-mt-ja-en')
+            self.tokenizer_ja_en = MarianTokenizer.from_pretrained('Helsinki-NLP/opus-mt-ja-en')
+            self.model_ja_en.to(self.device)
+            self.model_ja_en.eval()
+            self.logger.info("JA→EN model downloaded and loaded")
+
+        # ZH→JA
+        zh_ja_path = self.inference_config.get('model_path_zh_ja', 'Helsinki-NLP/opus-mt-zh-ja')
+        try:
+            self.model_zh_ja = MarianMTModel.from_pretrained(zh_ja_path)
+            self.tokenizer_zh_ja = MarianTokenizer.from_pretrained(zh_ja_path)
+            self.model_zh_ja.to(self.device)
+            self.model_zh_ja.eval()
+            self.logger.info(f"Loaded ZH->JA model from {zh_ja_path}")
+        except Exception as e:
+            self.logger.warning(f"Could not load ZH->JA model: {e}")
+            self.logger.info("Downloading ZH→JA model...")
+            self.model_zh_ja = MarianMTModel.from_pretrained('Helsinki-NLP/opus-mt-zh-ja')
+            self.tokenizer_zh_ja = MarianTokenizer.from_pretrained('Helsinki-NLP/opus-mt-zh-ja')
+            self.model_zh_ja.to(self.device)
+            self.model_zh_ja.eval()
+            self.logger.info("ZH→JA model downloaded and loaded")
+
+        # JA→ZH
+        ja_zh_path = self.inference_config.get('model_path_ja_zh', 'Helsinki-NLP/opus-mt-ja-zh')
+        try:
+            self.model_ja_zh = MarianMTModel.from_pretrained(ja_zh_path)
+            self.tokenizer_ja_zh = MarianTokenizer.from_pretrained(ja_zh_path)
+            self.model_ja_zh.to(self.device)
+            self.model_ja_zh.eval()
+            self.logger.info(f"Loaded JA->ZH model from {ja_zh_path}")
+        except Exception as e:
+            self.logger.warning(f"Could not load JA->ZH model: {e}")
+            self.logger.info("Downloading JA→ZH model...")
+            self.model_ja_zh = MarianMTModel.from_pretrained('Helsinki-NLP/opus-mt-ja-zh')
+            self.tokenizer_ja_zh = MarianTokenizer.from_pretrained('Helsinki-NLP/opus-mt-ja-zh')
+            self.model_ja_zh.to(self.device)
+            self.model_ja_zh.eval()
+            self.logger.info("JA→ZH model downloaded and loaded")
+
+        self.model_type = 'seq2seq'
+        self.logger.info("All models loaded on %s" % self.device)
     
     def load_vocabularies(self):
-        """Load vocabulary files."""
+        """Load vocabulary files (optional for Marian models)."""
         vocab_path = self.inference_config.get('vocab_path', 'data/processed/vocab')
         
-        # If vocab_path is a directory, look for pickle files
-        if os.path.isdir(vocab_path):
-            self.en_word2idx = load_pickle(os.path.join(vocab_path, '../en_word2idx.pkl'))
-            self.zh_word2idx = load_pickle(os.path.join(vocab_path, '../zh_word2idx.pkl'))
-            self.en_idx2word = load_pickle(os.path.join(vocab_path, '../en_idx2word.pkl'))
-            self.zh_idx2word = load_pickle(os.path.join(vocab_path, '../zh_idx2word.pkl'))
-        else:
-            # Assume processed directory structure
-            processed_dir = os.path.dirname(vocab_path)
-            self.en_word2idx = load_pickle(os.path.join(processed_dir, 'en_word2idx.pkl'))
-            self.zh_word2idx = load_pickle(os.path.join(processed_dir, 'zh_word2idx.pkl'))
-            self.en_idx2word = load_pickle(os.path.join(processed_dir, 'en_idx2word.pkl'))
-            self.zh_idx2word = load_pickle(os.path.join(processed_dir, 'zh_idx2word.pkl'))
-        
-        self.logger.info("Vocabularies loaded")
+        # For Marian models, vocabularies are built-in, so this is optional
+        try:
+            # If vocab_path is a directory, look for pickle files
+            if os.path.isdir(vocab_path):
+                self.en_word2idx = load_pickle(os.path.join(vocab_path, '../en_word2idx.pkl'))
+                self.zh_word2idx = load_pickle(os.path.join(vocab_path, '../zh_word2idx.pkl'))
+                self.en_idx2word = load_pickle(os.path.join(vocab_path, '../en_idx2word.pkl'))
+                self.zh_idx2word = load_pickle(os.path.join(vocab_path, '../zh_idx2word.pkl'))
+                self.logger.info("Vocabularies loaded")
+        except Exception as e:
+            self.logger.info("Using model's built-in vocabulary (vocabularies not loaded)")
     
     def preprocess_text(self, text: str) -> str:
         """
@@ -234,78 +321,124 @@ class TranslationInference:
         sentences = [s.strip() for s in sentences if s.strip()]
         return sentences
     
-    def chunk_sentence(self, sentence: str) -> List[str]:
+    def chunk_sentence(self, sentence: str, direction: str = 'en-zh') -> List[str]:
         """
         Chunk long sentences into smaller parts if needed.
         
         Args:
             sentence: Input sentence
+            direction: 'en-zh' or 'zh-en'
             
         Returns:
             List of chunks
         """
         max_length = self.inference_config['max_chunk_length']
         overlap = self.inference_config['chunk_overlap']
-        
-        # Tokenize with model tokenizer
-        tokens = self.tokenizer.tokenize(sentence)
-        
+        # Use the correct tokenizer for the direction
+        tokenizer = self.get_tokenizer(direction)
+        tokens = tokenizer.tokenize(sentence)
         if len(tokens) <= max_length:
             return [sentence]
-        
         # Split into chunks with overlap
         chunks = []
         words = sentence.split()
-        
         i = 0
         while i < len(words):
             chunk_words = words[i:i + max_length]
             chunks.append(' '.join(chunk_words))
             i += max_length - overlap
-            
             if i >= len(words):
                 break
-        
         return chunks
+
+    def get_tokenizer(self, direction: str):
+        if direction == 'en-zh':
+            return self.tokenizer_en_zh
+        elif direction == 'zh-en':
+            return self.tokenizer_zh_en
+        elif direction == 'en-ja':
+            return self.tokenizer_en_ja
+        elif direction == 'ja-en':
+            return self.tokenizer_ja_en
+        elif direction == 'zh-ja':
+            return self.tokenizer_zh_ja
+        elif direction == 'ja-zh':
+            return self.tokenizer_ja_zh
+        else:
+            raise ValueError(f"Unsupported direction: {direction}")
+
+    def get_model(self, direction: str):
+        if direction == 'en-zh':
+            return self.model_en_zh
+        elif direction == 'zh-en':
+            return self.model_zh_en
+        elif direction == 'en-ja':
+            return self.model_en_ja
+        elif direction == 'ja-en':
+            return self.model_ja_en
+        elif direction == 'zh-ja':
+            return self.model_zh_ja
+        elif direction == 'ja-zh':
+            return self.model_ja_zh
+        else:
+            raise ValueError(f"Unsupported direction: {direction}")
     
-    def translate_chunk(self, text: str) -> str:
+    def translate_chunk(self, text: str, direction: str = 'en-zh') -> str:
         """
         Translate a single text chunk.
         
         Args:
             text: Input text chunk
+            direction: Translation direction ('en-zh' or 'zh-en')
             
         Returns:
             Translated text
         """
+        # Select model and tokenizer based on direction
+        model = self.get_model(direction)
+        tokenizer = self.get_tokenizer(direction)
+        
         # Tokenize input
-        input_ids = self.tokenizer.encode(text, return_tensors='pd')
+        inputs = tokenizer(text, return_tensors='pt', padding=True, truncation=True, max_length=512)
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
         
         # Generate translation
-        with paddle.no_grad():
-            outputs = self.model.generate(
-                input_ids=input_ids,
-                max_length=self.inference_config.get('max_length', 512),
-                num_beams=self.inference_config.get('beam_size', 4),
-                length_penalty=self.inference_config.get('length_penalty', 0.6),
-                early_stopping=True
-            )
+        with torch.no_grad():
+            if self.model_type == 'seq2seq':
+                # For seq2seq models (like Marian)
+                outputs = model.generate(
+                    **inputs,
+                    max_length=self.inference_config.get('max_length', 512),
+                    num_beams=self.inference_config.get('beam_size', 4),
+                    length_penalty=self.inference_config.get('length_penalty', 0.6),
+                    early_stopping=True
+                )
+            else:
+                # For causal LM models
+                outputs = model.generate(
+                    inputs['input_ids'],
+                    max_length=self.inference_config.get('max_length', 512),
+                    num_beams=self.inference_config.get('beam_size', 4),
+                    length_penalty=self.inference_config.get('length_penalty', 0.6),
+                    early_stopping=True
+                )
         
         # Decode output
-        translated = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+        translated = tokenizer.decode(outputs[0], skip_special_tokens=True)
         
         return translated
     
-    def translate(self, text: str) -> str:
+    def translate(self, text: str, direction: str = 'en-zh') -> str:
         """
-        Translate English text to Chinese.
+        Translate text between English and Chinese.
         Main entry point for translation.
         
         Args:
-            text: English text to translate
+            text: Text to translate
+            direction: Translation direction ('en-zh', 'zh-en', 'en-ja', 'ja-en', 'zh-ja', 'ja-zh')
             
         Returns:
-            Chinese translation
+            Translated text
         """
         # Preprocess
         text = self.preprocess_text(text)
@@ -320,37 +453,89 @@ class TranslationInference:
         
         for sentence in sentences:
             # Chunk if necessary
-            chunks = self.chunk_sentence(sentence)
+            chunks = self.chunk_sentence(sentence, direction)
             
             translated_chunks = []
             for chunk in chunks:
                 try:
-                    translated_chunk = self.translate_chunk(chunk)
+                    translated_chunk = self.translate_chunk(chunk, direction)
                     translated_chunks.append(translated_chunk)
                 except Exception as e:
                     self.logger.error(f"Translation error for chunk: {e}")
                     translated_chunks.append(f"[Translation Error]")
             
             # Combine chunks
-            translated_sentence = ''.join(translated_chunks)
+            if direction in ['en-zh', 'zh-ja']:
+                translated_sentence = ''.join(translated_chunks)
+            else:
+                translated_sentence = ' '.join(translated_chunks)
             translated_sentences.append(translated_sentence)
         
         # Combine sentences
-        result = '。'.join(translated_sentences)
+        if direction in ['en-zh', 'zh-ja']:
+            result = '。'.join(translated_sentences)
+        else:
+            result = '. '.join(translated_sentences)
         
         return result
     
-    def batch_translate(self, texts: List[str]) -> List[str]:
+    def batch_translate(self, texts: List[str], batch_size: int = 8, direction: str = 'en-zh') -> List[str]:
         """
-        Translate multiple texts (useful for API mode).
+        Translate multiple texts efficiently using batching.
+        Significantly faster for document translation.
         
         Args:
-            texts: List of English texts
+            texts: List of texts to translate
+            batch_size: Number of texts to process simultaneously
+            direction: Translation direction ('en-zh' or 'zh-en')
             
         Returns:
-            List of Chinese translations
+            List of translations
         """
-        return [self.translate(text) for text in texts]
+        if not texts:
+            return []
+        
+        # Select model and tokenizer based on direction
+        if direction == 'zh-en':
+            model = self.model_zh_en
+            tokenizer = self.tokenizer_zh_en
+        else:
+            model = self.model_en_zh
+            tokenizer = self.tokenizer_en_zh
+        
+        # Preprocess all texts
+        processed_texts = [self.preprocess_text(t) for t in texts]
+        translations = []
+        
+        # Process in batches
+        for i in range(0, len(processed_texts), batch_size):
+            batch = processed_texts[i:i + batch_size]
+            
+            # Tokenize batch
+            inputs = tokenizer(
+                batch,
+                return_tensors='pt',
+                padding=True,
+                truncation=True,
+                max_length=512
+            )
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            
+            # Generate translations for batch
+            with torch.no_grad():
+                outputs = model.generate(
+                    **inputs,
+                    max_length=self.inference_config.get('max_length', 512),
+                    num_beams=self.inference_config.get('beam_size', 4),
+                    length_penalty=self.inference_config.get('length_penalty', 0.6),
+                    early_stopping=True
+                )
+            
+            # Decode batch outputs
+            batch_translations = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+            translations.extend(batch_translations)
+        
+        return translations
 
 
 class InferenceCache:

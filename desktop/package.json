@@ -1,0 +1,59 @@
+{
+  "name": "linguabridge-local",
+  "version": "1.0.0",
+  "description": "Offline English-to-Chinese Neural Machine Translation Desktop App",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
+  },
+  "keywords": ["translation", "neural-machine-translation", "offline", "chinese", "english"],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "build": {
+    "appId": "com.linguabridge.local",
+    "productName": "LinguaBridge Local",
+    "files": [
+      "main.js",
+      "preload.js",
+      "server.js",
+      "web/**/*",
+      "models/**/*",
+      "src/**/*",
+      "config.yaml",
+      "requirements.txt"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/icon.png",
+      "category": "Utility"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}

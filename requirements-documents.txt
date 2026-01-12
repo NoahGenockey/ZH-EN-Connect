@@ -1,0 +1,12 @@
+# Document Translation Dependencies
+# Install these to enable PDF and EPUB translation
+
+# PDF Support
+PyPDF2>=3.0.0
+pdfplumber>=0.10.0
+reportlab>=4.0.0
+
+# EPUB Support  
+ebooklib>=0.18
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
