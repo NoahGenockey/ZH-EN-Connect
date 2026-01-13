@@ -180,10 +180,14 @@ MONITORING:
 """
 
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Optional
 import logging
 import uvicorn
+import os
 
 try:
     from .inference import TranslationInference, InferenceCache
@@ -232,6 +236,20 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Add CORS middleware for web frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for local development
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Mount static files for web frontend
+web_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "web")
+if os.path.exists(web_dir):
+    app.mount("/static", StaticFiles(directory=web_dir), name="static")
+
 # Global state
 inference_engine: Optional[TranslationInference] = None
 cache: Optional[InferenceCache] = None
@@ -265,9 +283,32 @@ async def shutdown_event():
     logger.info("Shutting down LinguaBridge API...")
 
 
-@app.get("/", response_model=dict)
+@app.get("/", response_class=FileResponse)
 async def root():
-    """Root endpoint with API information."""
+    """Serve the web frontend."""
+    web_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "web")
+    index_path = os.path.join(web_dir, "index.html")
+    
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    else:
+        return {
+            "name": "LinguaBridge Local API",
+            "version": "1.0.0",
+            "description": "Offline English-to-Chinese Neural Machine Translation",
+            "endpoints": {
+                "POST /translate": "Translate a single text",
+                "POST /translate/batch": "Translate multiple texts",
+                "GET /health": "Health check",
+                "POST /cache/clear": "Clear translation cache",
+                "GET /docs": "Interactive API documentation"
+            }
+        }
+
+
+@app.get("/api", response_model=dict)
+async def api_info():
+    """API information endpoint."""
     return {
         "name": "LinguaBridge Local API",
         "version": "1.0.0",
@@ -276,7 +317,8 @@ async def root():
             "POST /translate": "Translate a single text",
             "POST /translate/batch": "Translate multiple texts",
             "GET /health": "Health check",
-            "POST /cache/clear": "Clear translation cache"
+            "POST /cache/clear": "Clear translation cache",
+            "GET /docs": "Interactive API documentation"
         }
     }
 
