@@ -181,96 +181,60 @@ class TranslationInference:
         en_zh_path = self.inference_config.get('model_path', 'models/student/final_model')
         if en_zh_path.endswith('.pdparams'):
             en_zh_path = os.path.dirname(en_zh_path)
-        self.model_en_zh = MarianMTModel.from_pretrained(en_zh_path)
-        self.tokenizer_en_zh = MarianTokenizer.from_pretrained(en_zh_path)
-        self.model_en_zh.to(self.device)
-        self.model_en_zh.eval()
-        self.logger.info(f"Loaded EN->ZH model from {en_zh_path}")
+        print(f"[DEBUG] Loading EN->ZH model from: {en_zh_path}")
+        try:
+            self.model_en_zh = MarianMTModel.from_pretrained(en_zh_path)
+            print("[DEBUG] MarianMTModel loaded EN->ZH")
+            self.tokenizer_en_zh = MarianTokenizer.from_pretrained(en_zh_path)
+            print("[DEBUG] MarianTokenizer loaded EN->ZH")
+            self.model_en_zh.to(self.device)
+            print(f"[DEBUG] Model moved to device: {self.device}")
+            self.model_en_zh.eval()
+            self.logger.info(f"Loaded EN->ZH model from {en_zh_path}")
+        except Exception as e:
+            print(f"[DEBUG] Failed to load EN->ZH model: {e}")
+            raise
 
         # ZH→EN
         zh_en_path = self.inference_config.get('model_path_zh_en', 'Helsinki-NLP/opus-mt-zh-en')
+        print(f"[DEBUG] Loading ZH->EN model from: {zh_en_path}")
         try:
             self.model_zh_en = MarianMTModel.from_pretrained(zh_en_path)
+            print("[DEBUG] MarianMTModel loaded ZH->EN")
             self.tokenizer_zh_en = MarianTokenizer.from_pretrained(zh_en_path)
+            print("[DEBUG] MarianTokenizer loaded ZH->EN")
             self.model_zh_en.to(self.device)
+            print(f"[DEBUG] ZH->EN model moved to device: {self.device}")
             self.model_zh_en.eval()
             self.logger.info(f"Loaded ZH->EN model from {zh_en_path}")
         except Exception as e:
+            print(f"[DEBUG] Failed to load ZH->EN model: {e}")
             self.logger.warning(f"Could not load ZH->EN model: {e}")
-            self.logger.info("Downloading ZH→EN model...")
+            self.logger.info("Downloading ZH->EN model...")
             self.model_zh_en = MarianMTModel.from_pretrained('Helsinki-NLP/opus-mt-zh-en')
             self.tokenizer_zh_en = MarianTokenizer.from_pretrained('Helsinki-NLP/opus-mt-zh-en')
             self.model_zh_en.to(self.device)
             self.model_zh_en.eval()
-            self.logger.info("ZH→EN model downloaded and loaded")
+            self.logger.info("ZH->EN model downloaded and loaded")
 
-        # EN→JA
-        en_ja_path = self.inference_config.get('model_path_en_ja', 'Helsinki-NLP/opus-mt-en-ja')
-        try:
-            self.model_en_ja = MarianMTModel.from_pretrained(en_ja_path)
-            self.tokenizer_en_ja = MarianTokenizer.from_pretrained(en_ja_path)
-            self.model_en_ja.to(self.device)
-            self.model_en_ja.eval()
-            self.logger.info(f"Loaded EN->JA model from {en_ja_path}")
-        except Exception as e:
-            self.logger.warning(f"Could not load EN->JA model: {e}")
-            self.logger.info("Downloading EN→JA model...")
-            self.model_en_ja = MarianMTModel.from_pretrained('Helsinki-NLP/opus-mt-en-ja')
-            self.tokenizer_en_ja = MarianTokenizer.from_pretrained('Helsinki-NLP/opus-mt-en-ja')
-            self.model_en_ja.to(self.device)
-            self.model_en_ja.eval()
-            self.logger.info("EN→JA model downloaded and loaded")
-
-        # JA→EN
-        ja_en_path = self.inference_config.get('model_path_ja_en', 'Helsinki-NLP/opus-mt-ja-en')
-        try:
-            self.model_ja_en = MarianMTModel.from_pretrained(ja_en_path)
-            self.tokenizer_ja_en = MarianTokenizer.from_pretrained(ja_en_path)
-            self.model_ja_en.to(self.device)
-            self.model_ja_en.eval()
-            self.logger.info(f"Loaded JA->EN model from {ja_en_path}")
-        except Exception as e:
-            self.logger.warning(f"Could not load JA->EN model: {e}")
-            self.logger.info("Downloading JA→EN model...")
-            self.model_ja_en = MarianMTModel.from_pretrained('Helsinki-NLP/opus-mt-ja-en')
-            self.tokenizer_ja_en = MarianTokenizer.from_pretrained('Helsinki-NLP/opus-mt-ja-en')
-            self.model_ja_en.to(self.device)
-            self.model_ja_en.eval()
-            self.logger.info("JA→EN model downloaded and loaded")
-
-        # ZH→JA
-        zh_ja_path = self.inference_config.get('model_path_zh_ja', 'Helsinki-NLP/opus-mt-zh-ja')
-        try:
-            self.model_zh_ja = MarianMTModel.from_pretrained(zh_ja_path)
-            self.tokenizer_zh_ja = MarianTokenizer.from_pretrained(zh_ja_path)
-            self.model_zh_ja.to(self.device)
-            self.model_zh_ja.eval()
-            self.logger.info(f"Loaded ZH->JA model from {zh_ja_path}")
-        except Exception as e:
-            self.logger.warning(f"Could not load ZH->JA model: {e}")
-            self.logger.info("Downloading ZH→JA model...")
-            self.model_zh_ja = MarianMTModel.from_pretrained('Helsinki-NLP/opus-mt-zh-ja')
-            self.tokenizer_zh_ja = MarianTokenizer.from_pretrained('Helsinki-NLP/opus-mt-zh-ja')
-            self.model_zh_ja.to(self.device)
-            self.model_zh_ja.eval()
-            self.logger.info("ZH→JA model downloaded and loaded")
-
-        # JA→ZH
-        ja_zh_path = self.inference_config.get('model_path_ja_zh', 'Helsinki-NLP/opus-mt-ja-zh')
-        try:
-            self.model_ja_zh = MarianMTModel.from_pretrained(ja_zh_path)
-            self.tokenizer_ja_zh = MarianTokenizer.from_pretrained(ja_zh_path)
-            self.model_ja_zh.to(self.device)
-            self.model_ja_zh.eval()
-            self.logger.info(f"Loaded JA->ZH model from {ja_zh_path}")
-        except Exception as e:
-            self.logger.warning(f"Could not load JA->ZH model: {e}")
-            self.logger.info("Downloading JA→ZH model...")
-            self.model_ja_zh = MarianMTModel.from_pretrained('Helsinki-NLP/opus-mt-ja-zh')
-            self.tokenizer_ja_zh = MarianTokenizer.from_pretrained('Helsinki-NLP/opus-mt-ja-zh')
-            self.model_ja_zh.to(self.device)
-            self.model_ja_zh.eval()
-            self.logger.info("JA→ZH model downloaded and loaded")
+        # Japanese directions use NLLB-200 (skip if model path is empty)
+        nllb_path = self.inference_config.get('model_path_en_ja', '')
+        if nllb_path:
+            print(f"[DEBUG] Loading NLLB-200 model from: {nllb_path}")
+            try:
+                self.model_nllb = AutoModelForSeq2SeqLM.from_pretrained(nllb_path)
+                print("[DEBUG] AutoModelForSeq2SeqLM loaded NLLB-200")
+                self.tokenizer_nllb = AutoTokenizer.from_pretrained(nllb_path)
+                print("[DEBUG] AutoTokenizer loaded NLLB-200")
+                self.model_nllb.to(self.device)
+                print(f"[DEBUG] NLLB-200 model moved to device: {self.device}")
+                self.model_nllb.eval()
+                self.logger.info(f"Loaded NLLB-200 model for Japanese directions from {nllb_path}")
+            except Exception as e:
+                print(f"[DEBUG] Failed to load NLLB-200 model: {e}")
+                raise
+        else:
+            print("[DEBUG] Skipping NLLB-200 model loading (Japanese translation disabled)")
 
         self.model_type = 'seq2seq'
         self.logger.info("All models loaded on %s" % self.device)
@@ -352,34 +316,22 @@ class TranslationInference:
         return chunks
 
     def get_tokenizer(self, direction: str):
-        if direction == 'en-zh':
+        if direction in ['en-ja', 'ja-en', 'zh-ja', 'ja-zh']:
+            return self.tokenizer_nllb
+        elif direction == 'en-zh':
             return self.tokenizer_en_zh
         elif direction == 'zh-en':
             return self.tokenizer_zh_en
-        elif direction == 'en-ja':
-            return self.tokenizer_en_ja
-        elif direction == 'ja-en':
-            return self.tokenizer_ja_en
-        elif direction == 'zh-ja':
-            return self.tokenizer_zh_ja
-        elif direction == 'ja-zh':
-            return self.tokenizer_ja_zh
         else:
             raise ValueError(f"Unsupported direction: {direction}")
 
     def get_model(self, direction: str):
-        if direction == 'en-zh':
+        if direction in ['en-ja', 'ja-en', 'zh-ja', 'ja-zh']:
+            return self.model_nllb
+        elif direction == 'en-zh':
             return self.model_en_zh
         elif direction == 'zh-en':
             return self.model_zh_en
-        elif direction == 'en-ja':
-            return self.model_en_ja
-        elif direction == 'ja-en':
-            return self.model_ja_en
-        elif direction == 'zh-ja':
-            return self.model_zh_ja
-        elif direction == 'ja-zh':
-            return self.model_ja_zh
         else:
             raise ValueError(f"Unsupported direction: {direction}")
     
@@ -397,15 +349,35 @@ class TranslationInference:
         # Select model and tokenizer based on direction
         model = self.get_model(direction)
         tokenizer = self.get_tokenizer(direction)
-        
-        # Tokenize input
-        inputs = tokenizer(text, return_tensors='pt', padding=True, truncation=True, max_length=512)
-        inputs = {k: v.to(self.device) for k, v in inputs.items()}
-        
-        # Generate translation
-        with torch.no_grad():
-            if self.model_type == 'seq2seq':
-                # For seq2seq models (like Marian)
+
+        # NLLB language codes
+        lang_map = {
+            'en-ja': ('eng_Latn', 'jpn_Jpan'),
+            'ja-en': ('jpn_Jpan', 'eng_Latn'),
+            'zh-ja': ('zho_Hans', 'jpn_Jpan'),
+            'ja-zh': ('jpn_Jpan', 'zho_Hans'),
+        }
+
+        if direction in lang_map:
+            src_lang, tgt_lang = lang_map[direction]
+            inputs = tokenizer(text, return_tensors='pt', padding=True, truncation=True, max_length=512, src_lang=src_lang)
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            with torch.no_grad():
+                outputs = model.generate(
+                    **inputs,
+                    forced_bos_token_id=tokenizer.convert_tokens_to_ids(tgt_lang),
+                    max_length=self.inference_config.get('max_length', 512),
+                    num_beams=self.inference_config.get('beam_size', 4),
+                    length_penalty=self.inference_config.get('length_penalty', 0.6),
+                    early_stopping=True
+                )
+            translated = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            return translated
+        else:
+            # Marian directions
+            inputs = tokenizer(text, return_tensors='pt', padding=True, truncation=True, max_length=512)
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            with torch.no_grad():
                 outputs = model.generate(
                     **inputs,
                     max_length=self.inference_config.get('max_length', 512),
@@ -413,20 +385,8 @@ class TranslationInference:
                     length_penalty=self.inference_config.get('length_penalty', 0.6),
                     early_stopping=True
                 )
-            else:
-                # For causal LM models
-                outputs = model.generate(
-                    inputs['input_ids'],
-                    max_length=self.inference_config.get('max_length', 512),
-                    num_beams=self.inference_config.get('beam_size', 4),
-                    length_penalty=self.inference_config.get('length_penalty', 0.6),
-                    early_stopping=True
-                )
-        
-        # Decode output
-        translated = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        
-        return translated
+            translated = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            return translated
     
     def translate(self, text: str, direction: str = 'en-zh') -> str:
         """

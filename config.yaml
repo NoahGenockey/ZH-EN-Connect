@@ -108,12 +108,12 @@ student:
 
 # Inference Configuration
 inference:
-  model_path: "models/student/final_model"  # EN→ZH model
+  model_path: "Helsinki-NLP/opus-mt-en-zh"  # EN→ZH model
   model_path_zh_en: "Helsinki-NLP/opus-mt-zh-en"  # ZH→EN model
-   model_path_en_ja: "Helsinki-NLP/opus-mt-en-ja"  # EN→JA model
-   model_path_ja_en: "Helsinki-NLP/opus-mt-ja-en"  # JA→EN model
-   model_path_zh_ja: "Helsinki-NLP/opus-mt-zh-ja"  # ZH→JA model
-   model_path_ja_zh: "Helsinki-NLP/opus-mt-ja-zh"  # JA→ZH model
+  model_path_en_ja: "Helsinki-NLP/opus-mt-en-ja"  # EN→JA model
+  model_path_ja_en: "Helsinki-NLP/opus-mt-ja-en"  # JA→EN model
+  model_path_zh_ja: "Helsinki-NLP/opus-mt-zh-ja"  # ZH→JA model
+  model_path_ja_zh: "Helsinki-NLP/opus-mt-ja-zh"  # JA→ZH model
   vocab_path: "data/processed/vocab"
   max_length: 512
   beam_size: 4  # Reduce to 2 for 2x speed boost, or 1 (greedy) for 4x speed
@@ -126,8 +126,9 @@ inference:
   # Performance optimization
   use_cache: true
   batch_inference: true  # Enable batch processing for better performance
-  batch_size: 8  # Number of sentences to process simultaneously (GPU: 16-32, CPU: 4-8)
-  use_gpu: true  # Auto-detect and use GPU if available (3-5x faster)
+  batch_size: 1  # Lower batch size for minimal memory usage
+  beam_size: 4   # Keep beam size for quality
+  use_gpu: false  # Force CPU for maximum compatibility
 
 # Deployment Configuration
 deployment:
@@ -145,8 +146,8 @@ deployment:
 
 # Hardware Optimization (ARM/Windows)
 hardware:
-  device: "cpu"  # Force CPU for ARM compatibility
-  num_threads: 4  # Paddle CPU threads
+  device: "cpu"  # Force CPU for compatibility
+  num_threads: 1  # Lower threads for minimal memory usage
   enable_mkldnn: false  # May not be available on ARM
 
 # Logging

@@ -64,11 +64,8 @@ class EnhancedTranslationApp:
         style.configure('TScrollbar', background='#e6e6ed')
         self.root.configure(bg='#f7f7fa')
         
-        # Setup UI
+        # Setup UI (model loading will be triggered at the end of setup_ui)
         self.setup_ui()
-        
-        # Load model in background
-        self.load_model_async()
     
     def setup_ui(self):
         """Setup the user interface with tabs."""
@@ -121,6 +118,12 @@ class EnhancedTranslationApp:
         )
         self.progress_bar.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(5, 0))
         self.progress_bar.start(10)
+
+        # Now that all UI elements are created, start model loading
+        self.root.after(100, self.load_model_async)
+
+        # Now that all UI elements are created, start model loading
+        self.root.after(100, self.load_model_async)
     
     def setup_text_tab(self):
         """Setup text translation tab."""
@@ -128,67 +131,33 @@ class EnhancedTranslationApp:
         self.text_tab.rowconfigure(2, weight=1)
         self.text_tab.rowconfigure(4, weight=1)
         
-        # Direction selector
+        # Language selection dropdowns and swap button
         direction_frame = ttk.Frame(self.text_tab)
         direction_frame.grid(row=0, column=0, pady=(0, 10), sticky=tk.W)
-        
-        ttk.Label(direction_frame, text="Translation Direction:", font=('Arial', 10, 'bold')).pack(side=tk.LEFT, padx=(0, 10))
-        
-        self.direction_var = tk.StringVar(value='en-zh')
-        
-        en_zh_radio = ttk.Radiobutton(
-            direction_frame,
-            text="English -> Chinese",
-            variable=self.direction_var,
-            value='en-zh',
-            command=self.update_labels
-        )
-        en_zh_radio.pack(side=tk.LEFT, padx=5)
 
-        zh_en_radio = ttk.Radiobutton(
-            direction_frame,
-            text="Chinese -> English",
-            variable=self.direction_var,
-            value='zh-en',
-            command=self.update_labels
-        )
-        zh_en_radio.pack(side=tk.LEFT, padx=5)
+        ttk.Label(direction_frame, text="Source Language:", font=('Arial', 10, 'bold')).pack(side=tk.LEFT, padx=(0, 5))
+        self.source_lang_var = tk.StringVar(value='English')
+        self.target_lang_var = tk.StringVar(value='Chinese')
+        lang_options = ['English', 'Chinese', 'Japanese']
+        self.source_dropdown = ttk.Combobox(direction_frame, textvariable=self.source_lang_var, values=lang_options, state='readonly', width=10)
+        self.source_dropdown.pack(side=tk.LEFT, padx=2)
 
-        en_ja_radio = ttk.Radiobutton(
-            direction_frame,
-            text="English -> Japanese",
-            variable=self.direction_var,
-            value='en-ja',
-            command=self.update_labels
-        )
-        en_ja_radio.pack(side=tk.LEFT, padx=5)
+        swap_btn = ttk.Button(direction_frame, text="⇄", width=3, command=self.swap_languages)
+        swap_btn.pack(side=tk.LEFT, padx=5)
 
-        ja_en_radio = ttk.Radiobutton(
-            direction_frame,
-            text="Japanese -> English",
-            variable=self.direction_var,
-            value='ja-en',
-            command=self.update_labels
-        )
-        ja_en_radio.pack(side=tk.LEFT, padx=5)
+        ttk.Label(direction_frame, text="Target Language:", font=('Arial', 10, 'bold')).pack(side=tk.LEFT, padx=(5, 5))
+        self.target_dropdown = ttk.Combobox(direction_frame, textvariable=self.target_lang_var, values=lang_options, state='readonly', width=10)
+        self.target_dropdown.pack(side=tk.LEFT, padx=2)
 
-        zh_ja_radio = ttk.Radiobutton(
-            direction_frame,
-            text="Chinese -> Japanese",
-            variable=self.direction_var,
-            value='zh-ja',
-            command=self.update_labels
-        )
-        zh_ja_radio.pack(side=tk.LEFT, padx=5)
+        self.source_dropdown.bind('<<ComboboxSelected>>', lambda e: self.update_labels())
+        self.target_dropdown.bind('<<ComboboxSelected>>', lambda e: self.update_labels())
 
-        ja_zh_radio = ttk.Radiobutton(
-            direction_frame,
-            text="Japanese -> Chinese",
-            variable=self.direction_var,
-            value='ja-zh',
-            command=self.update_labels
-        )
-        ja_zh_radio.pack(side=tk.LEFT, padx=5)
+    def swap_languages(self):
+        src = self.source_lang_var.get()
+        tgt = self.target_lang_var.get()
+        self.source_lang_var.set(tgt)
+        self.target_lang_var.set(src)
+        self.update_labels()
         
         # Input section
         self.input_label_frame = ttk.LabelFrame(self.text_tab, text="English Input", padding="5")
@@ -254,55 +223,32 @@ class EnhancedTranslationApp:
         """Setup document translation tab."""
         self.doc_tab.columnconfigure(0, weight=1)
         
-        # Direction selector for documents
+        # Direction selector for documents (dropdowns and swap)
         doc_direction_frame = ttk.Frame(self.doc_tab)
         doc_direction_frame.grid(row=0, column=0, pady=(0, 15), sticky=tk.W)
-        
-        ttk.Label(doc_direction_frame, text="Translation Direction:", font=('Arial', 10, 'bold')).pack(side=tk.LEFT, padx=(0, 10))
-        
-        self.doc_direction_var = tk.StringVar(value='en-zh')
-        
-        ttk.Radiobutton(
-            doc_direction_frame,
-            text="English -> Chinese",
-            variable=self.doc_direction_var,
-            value='en-zh'
-        ).pack(side=tk.LEFT, padx=5)
 
-        ttk.Radiobutton(
-            doc_direction_frame,
-            text="Chinese -> English",
-            variable=self.doc_direction_var,
-            value='zh-en'
-        ).pack(side=tk.LEFT, padx=5)
+        ttk.Label(doc_direction_frame, text="Source Language:", font=('Arial', 10, 'bold')).pack(side=tk.LEFT, padx=(0, 5))
+        self.doc_source_lang_var = tk.StringVar(value='English')
+        self.doc_target_lang_var = tk.StringVar(value='Chinese')
+        lang_options = ['English', 'Chinese', 'Japanese']
+        self.doc_source_dropdown = ttk.Combobox(doc_direction_frame, textvariable=self.doc_source_lang_var, values=lang_options, state='readonly', width=10)
+        self.doc_source_dropdown.pack(side=tk.LEFT, padx=2)
 
-        ttk.Radiobutton(
-            doc_direction_frame,
-            text="English -> Japanese",
-            variable=self.doc_direction_var,
-            value='en-ja'
-        ).pack(side=tk.LEFT, padx=5)
+        doc_swap_btn = ttk.Button(doc_direction_frame, text="⇄", width=3, command=self.doc_swap_languages)
+        doc_swap_btn.pack(side=tk.LEFT, padx=5)
 
-        ttk.Radiobutton(
-            doc_direction_frame,
-            text="Japanese -> English",
-            variable=self.doc_direction_var,
-            value='ja-en'
-        ).pack(side=tk.LEFT, padx=5)
+        ttk.Label(doc_direction_frame, text="Target Language:", font=('Arial', 10, 'bold')).pack(side=tk.LEFT, padx=(5, 5))
+        self.doc_target_dropdown = ttk.Combobox(doc_direction_frame, textvariable=self.doc_target_lang_var, values=lang_options, state='readonly', width=10)
+        self.doc_target_dropdown.pack(side=tk.LEFT, padx=2)
 
-        ttk.Radiobutton(
-            doc_direction_frame,
-            text="Chinese -> Japanese",
-            variable=self.doc_direction_var,
-            value='zh-ja'
-        ).pack(side=tk.LEFT, padx=5)
+        self.doc_source_dropdown.bind('<<ComboboxSelected>>', lambda e: None)
+        self.doc_target_dropdown.bind('<<ComboboxSelected>>', lambda e: None)
 
-        ttk.Radiobutton(
-            doc_direction_frame,
-            text="Japanese -> Chinese",
-            variable=self.doc_direction_var,
-            value='ja-zh'
-        ).pack(side=tk.LEFT, padx=5)
+    def doc_swap_languages(self):
+        src = self.doc_source_lang_var.get()
+        tgt = self.doc_target_lang_var.get()
+        self.doc_source_lang_var.set(tgt)
+        self.doc_target_lang_var.set(src)
         
         # Info frame
         info_frame = ttk.LabelFrame(self.doc_tab, text="📚 Translate Entire Documents", padding="15")
@@ -415,8 +361,21 @@ class EnhancedTranslationApp:
             messagebox.showerror("File Not Found", f"Input file not found:\n{input_path}")
             return
         
-        # Get direction
-        direction = self.doc_direction_var.get()
+        # Get direction from dropdowns
+        src = self.doc_source_lang_var.get()
+        tgt = self.doc_target_lang_var.get()
+        lang_map = {
+            ('English', 'Chinese'): 'en-zh',
+            ('Chinese', 'English'): 'zh-en',
+            ('English', 'Japanese'): 'en-ja',
+            ('Japanese', 'English'): 'ja-en',
+            ('Chinese', 'Japanese'): 'zh-ja',
+            ('Japanese', 'Chinese'): 'ja-zh',
+        }
+        direction = lang_map.get((src, tgt))
+        if not direction:
+            messagebox.showerror("Invalid Language Pair", f"Translation from {src} to {tgt} is not supported.")
+            return
         
         # Disable button
         self.doc_translate_button.config(state=tk.DISABLED)
@@ -466,13 +425,14 @@ class EnhancedTranslationApp:
                 self.root.after(0, self.on_model_loaded)
             except Exception as e:
                 self.logger.error(f"Failed to load model: {e}")
-                self.root.after(0, lambda: self.on_model_load_error(str(e)))
+                self.root.after(0, lambda e=e: self.on_model_load_error(str(e)))
         
         thread = threading.Thread(target=load, daemon=True)
         thread.start()
     
     def on_model_loaded(self):
         """Called when model is successfully loaded."""
+        print("[DEBUG] on_model_loaded called")
         self.progress_bar.stop()
         self.progress_bar.grid_remove()
         self.translate_button.config(state=tk.NORMAL)
@@ -482,25 +442,39 @@ class EnhancedTranslationApp:
     
     def on_model_load_error(self, error_msg):
         """Called when model loading fails."""
+        print(f"[DEBUG] on_model_load_error called with error_msg: {error_msg}")
         self.progress_bar.stop()
         self.progress_bar.grid_remove()
         self.status_var.set(f"Error: {error_msg}")
         messagebox.showerror("Model Loading Error", f"Failed to load translation model:\n{error_msg}\n\nCheck your internet connection and model paths in config.yaml.")
     
     def translate_text(self):
-        """Translate text in selected direction."""
+        """Translate text using selected source and target languages."""
         if self.is_translating:
             return
-        
+
         input_text = self.input_text.get("1.0", tk.END).strip()
-        
+
         if not input_text:
             messagebox.showwarning("Empty Input", "Please enter text to translate.")
             return
-        
-        # Get direction
-        direction = self.direction_var.get()
-        
+
+        # Get source and target languages
+        src = self.source_lang_var.get()
+        tgt = self.target_lang_var.get()
+        lang_map = {
+            ('English', 'Chinese'): 'en-zh',
+            ('Chinese', 'English'): 'zh-en',
+            ('English', 'Japanese'): 'en-ja',
+            ('Japanese', 'English'): 'ja-en',
+            ('Chinese', 'Japanese'): 'zh-ja',
+            ('Japanese', 'Chinese'): 'ja-zh',
+        }
+        direction = lang_map.get((src, tgt))
+        if not direction:
+            messagebox.showerror("Invalid Language Pair", f"Translation from {src} to {tgt} is not supported.")
+            return
+
         # Check cache with direction
         cache_key = f"{direction}:{input_text}"
         cached_result = self.cache.get(cache_key)
@@ -508,7 +482,7 @@ class EnhancedTranslationApp:
             self.display_translation(cached_result)
             self.status_var.set("Translation retrieved from cache")
             return
-        
+
         self.is_translating = True
         self.translate_button.config(state=tk.DISABLED)
         self.status_var.set("Translating...")

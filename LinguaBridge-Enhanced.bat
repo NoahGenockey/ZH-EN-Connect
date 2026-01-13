@@ -20,11 +20,13 @@ if errorlevel 1 (
 REM Launch the enhanced GUI
 echo Starting LinguaBridge Enhanced...
 echo.
-pythonw -m src.app_gui_enhanced
+C:\Python314\pythonw.exe -m src.app_gui_enhanced
 
-REM If pythonw doesn't work, try python
+REM If pythonw fails, show error and exit
 if errorlevel 1 (
-    python -m src.app_gui_enhanced
+    echo ERROR: Could not start GUI with pythonw. Please check your Python installation.
+    pause
+    exit /b 1
 )
 
 echo.
