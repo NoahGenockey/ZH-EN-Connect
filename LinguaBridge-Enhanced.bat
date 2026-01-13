@@ -1,10 +1,10 @@
 @echo off
-REM LinguaBridge Local - Enhanced Desktop App with Document Translation
+REM LinguaBridge Local - Desktop App with Document Translation
 REM Includes PDF and EPUB translation support
 
 echo.
 echo ============================================================
-echo   LinguaBridge Local - Enhanced with Document Translation
+echo   LinguaBridge Local - Document Translation
 echo ============================================================
 echo.
 
@@ -17,18 +17,16 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM Launch the enhanced GUI
-echo Starting LinguaBridge Enhanced...
+REM Launch the GUI
+echo Starting LinguaBridge...
 echo.
-C:\Python314\pythonw.exe -m src.app_gui_enhanced
+pythonw -m src.app_gui_enhanced
 
 REM If pythonw fails, show error and exit
 if errorlevel 1 (
-    echo ERROR: Could not start GUI with pythonw. Please check your Python installation.
-    pause
-    exit /b 1
+    python -m src.app_gui_enhanced
 )
 
 echo.
-echo Double-click: LinguaBridge-Enhanced.bat
+echo Double-click: LinguaBridge.bat
 echo.

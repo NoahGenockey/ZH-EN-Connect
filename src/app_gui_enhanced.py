@@ -1,10 +1,11 @@
+
 """
-LinguaBridge Local - Enhanced GUI with Document Translation
+LinguaBridge Local - GUI with Document Translation
 Desktop application with text and document translation support.
 """
 
 import tkinter as tk
-from tkinter import ttk, scrolledtext, messagebox, filedialog
+from tkinter import ttk, scrolledtextc, messagebox, filedialog
 import threading
 import logging
 from typing import Optional
@@ -20,9 +21,9 @@ except ImportError:
     from utils import load_config, setup_logging
 
 
-class EnhancedTranslationApp:
+class TranslationApp:
     """
-    Enhanced desktop GUI with document translation support.
+    Desktop GUI with document translation support.
     """
     
     def __init__(self, config: dict):
@@ -563,7 +564,7 @@ def main():
     """Main entry point."""
     config = load_config()
     logger = setup_logging(config)
-    app = EnhancedTranslationApp(config)
+    app = TranslationApp(config)
     app.run()
 
 

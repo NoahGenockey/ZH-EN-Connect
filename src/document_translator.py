@@ -29,12 +29,10 @@ try:
 except ImportError:
     EPUB_AVAILABLE = False
 
-try:
-    from .inference import TranslationInference
-    from .utils import load_config
-except ImportError:
-    from inference import TranslationInference
-    from utils import load_config
+
+# Always use absolute imports for compatibility with test runner
+from src.inference import TranslationInference
+from src.utils import load_config
 
 
 class DocumentTranslator:
@@ -143,38 +141,18 @@ class DocumentTranslator:
         translated_texts = []
         
         for i, text in enumerate(texts):
-            # Split into paragraphs for better translation
-            paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
-            
-            # Filter paragraphs (only translate meaningful text)
-            long_paragraphs = []
-            short_paragraphs_indices = []
-            
-            for idx, para in enumerate(paragraphs):
-                if len(para) > 10:  # Translate longer paragraphs
-                    long_paragraphs.append(para)
-                else:
-                    short_paragraphs_indices.append(idx)
-            
-            # Batch translate all long paragraphs at once (much faster!)
-            if long_paragraphs:
-                translated_long = self.inference.batch_translate(long_paragraphs, batch_size=8, direction=direction)
-            else:
-                translated_long = []
-            
-            # Reconstruct page with translated paragraphs
-            translated_paragraphs = []
-            long_idx = 0
-            
-            for idx, para in enumerate(paragraphs):
-                if len(para) > 10:
-                    translated_paragraphs.append(translated_long[long_idx])
-                    long_idx += 1
-                else:
-                    translated_paragraphs.append(para)
-            
-            translated_texts.append('\n\n'.join(translated_paragraphs))
-            
+            try:
+                # Split into paragraphs for better translation
+                paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+                # Translate all paragraphs, regardless of length
+                translated_paragraphs = []
+                if paragraphs:
+                    translated = self.inference.batch_translate(paragraphs, batch_size=8, direction=direction)
+                    translated_paragraphs = translated
+                translated_texts.append('\n\n'.join(translated_paragraphs))
+            except Exception as e:
+                self.logger.error(f"Error translating page {i+1}: {e}")
+                translated_texts.append(f"[Translation Error on page {i+1}: {e}]")
             if progress_callback:
                 progress = 30 + int((i + 1) / len(texts) * 60)  # 30-90%
                 progress_callback(progress, f"Translating page {i+1}/{len(texts)}")
@@ -241,40 +219,36 @@ class DocumentTranslator:
         
         for i, item in enumerate(items):
             if item.get_type() == 9:  # ITEM_DOCUMENT
-                self.logger.info(f"Translating chapter {i+1}/{len(items)}...")
-                
-                # Parse HTML
-                soup = BeautifulSoup(item.get_content(), 'html.parser')
-                
-                # Collect all text nodes to translate
-                text_nodes = []
-                text_contents = []
-                
-                for text_node in soup.find_all(text=True):
-                    if text_node.parent.name not in ['script', 'style']:
-                        text = text_node.strip()
-                        if len(text) > 10:
-                            text_nodes.append(text_node)
-                            text_contents.append(text)
-                
-                # Batch translate all text at once (much faster!)
-                if text_contents:
-                    translated_texts = self.inference.batch_translate(text_contents, batch_size=8, direction=direction)
-                    
-                    # Replace text nodes with translations
-                    for text_node, translated in zip(text_nodes, translated_texts):
-                        text_node.replace_with(translated)
-                
-                # Create translated chapter
-                translated_item = epub.EpubHtml(
-                    title=item.get_name(),
-                    file_name=item.get_name(),
-                    lang='zh'
-                )
-                translated_item.content = str(soup).encode('utf-8')
-                translated_book.add_item(translated_item)
-                translated_items.append(translated_item)
-                
+                try:
+                    self.logger.info(f"Translating chapter {i+1}/{len(items)}...")
+                    # Parse HTML
+                    soup = BeautifulSoup(item.get_content(), 'html.parser')
+                    # Collect all text nodes to translate (no length filter)
+                    text_nodes = []
+                    text_contents = []
+                    for text_node in soup.find_all(string=True):
+                        if text_node.parent.name not in ['script', 'style']:
+                            text = text_node.strip()
+                            if text:
+                                text_nodes.append(text_node)
+                                text_contents.append(text)
+                    # Batch translate all text at once (much faster!)
+                    if text_contents:
+                        translated_texts = self.inference.batch_translate(text_contents, batch_size=8, direction=direction)
+                        # Replace text nodes with translations
+                        for text_node, translated in zip(text_nodes, translated_texts):
+                            text_node.replace_with(translated)
+                    # Create translated chapter
+                    translated_item = epub.EpubHtml(
+                        title=item.get_name(),
+                        file_name=item.get_name(),
+                        lang='zh'
+                    )
+                    translated_item.content = str(soup).encode('utf-8')
+                    translated_book.add_item(translated_item)
+                    translated_items.append(translated_item)
+                except Exception as e:
+                    self.logger.error(f"Error translating chapter {i+1}: {e}")
                 if progress_callback:
                     progress = int((i + 1) / len(items) * 100)
                     progress_callback(progress, f"Translating chapter {i+1}/{len(items)}")

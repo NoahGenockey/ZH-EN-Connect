@@ -110,25 +110,22 @@ student:
 inference:
   model_path: "Helsinki-NLP/opus-mt-en-zh"  # EN→ZH model
   model_path_zh_en: "Helsinki-NLP/opus-mt-zh-en"  # ZH→EN model
-  model_path_en_ja: "Helsinki-NLP/opus-mt-en-ja"  # EN→JA model
-  model_path_ja_en: "Helsinki-NLP/opus-mt-ja-en"  # JA→EN model
-  model_path_zh_ja: "Helsinki-NLP/opus-mt-zh-ja"  # ZH→JA model
-  model_path_ja_zh: "Helsinki-NLP/opus-mt-ja-zh"  # JA→ZH model
+  model_path_en_ja: "staka/fugumt-en-ja"  # EN→JA model
+  model_path_ja_en: "staka/fugumt-ja-en"  # JA→EN model
   vocab_path: "data/processed/vocab"
   max_length: 512
-  beam_size: 4  # Reduce to 2 for 2x speed boost, or 1 (greedy) for 4x speed
+  beam_size: 2
   length_penalty: 0.6
-  
+  batch_size: 16
   # Chunking for long sentences
-  chunk_overlap: 20  # Tokens to overlap between chunks
-  max_chunk_length: 480  # Leave buffer for special tokens
-  
+  chunk_overlap: 20
+  max_chunk_length: 480
   # Performance optimization
   use_cache: true
-  batch_inference: true  # Enable batch processing for better performance
-  batch_size: 1  # Lower batch size for minimal memory usage
-  beam_size: 4   # Keep beam size for quality
-  use_gpu: false  # Force CPU for maximum compatibility
+  batch_inference: true
+  batch_size: 1
+  beam_size: 4
+  use_gpu: false
 
 # Deployment Configuration
 deployment:

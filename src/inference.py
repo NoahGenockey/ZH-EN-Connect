@@ -217,24 +217,42 @@ class TranslationInference:
             self.model_zh_en.eval()
             self.logger.info("ZH->EN model downloaded and loaded")
 
-        # Japanese directions use NLLB-200 (skip if model path is empty)
-        nllb_path = self.inference_config.get('model_path_en_ja', '')
-        if nllb_path:
-            print(f"[DEBUG] Loading NLLB-200 model from: {nllb_path}")
+        # Japanese directions (staka/fugumt-en-ja and staka/fugumt-ja-en)
+        en_ja_path = self.inference_config.get('model_path_en_ja', '')
+        ja_en_path = self.inference_config.get('model_path_ja_en', '')
+        if en_ja_path:
+            print(f"[DEBUG] Loading EN->JA model from: {en_ja_path}")
             try:
-                self.model_nllb = AutoModelForSeq2SeqLM.from_pretrained(nllb_path)
-                print("[DEBUG] AutoModelForSeq2SeqLM loaded NLLB-200")
-                self.tokenizer_nllb = AutoTokenizer.from_pretrained(nllb_path)
-                print("[DEBUG] AutoTokenizer loaded NLLB-200")
-                self.model_nllb.to(self.device)
-                print(f"[DEBUG] NLLB-200 model moved to device: {self.device}")
-                self.model_nllb.eval()
-                self.logger.info(f"Loaded NLLB-200 model for Japanese directions from {nllb_path}")
+                self.model_en_ja = MarianMTModel.from_pretrained(en_ja_path)
+                print("[DEBUG] MarianMTModel loaded EN->JA")
+                self.tokenizer_en_ja = MarianTokenizer.from_pretrained(en_ja_path)
+                print("[DEBUG] MarianTokenizer loaded EN->JA")
+                self.model_en_ja.to(self.device)
+                print(f"[DEBUG] EN->JA model moved to device: {self.device}")
+                self.model_en_ja.eval()
+                self.logger.info(f"Loaded EN->JA model from {en_ja_path}")
             except Exception as e:
-                print(f"[DEBUG] Failed to load NLLB-200 model: {e}")
+                print(f"[DEBUG] Failed to load EN->JA model: {e}")
                 raise
         else:
-            print("[DEBUG] Skipping NLLB-200 model loading (Japanese translation disabled)")
+            print("[DEBUG] Skipping EN->JA model loading (Japanese translation disabled)")
+
+        if ja_en_path:
+            print(f"[DEBUG] Loading JA->EN model from: {ja_en_path}")
+            try:
+                self.model_ja_en = MarianMTModel.from_pretrained(ja_en_path)
+                print("[DEBUG] MarianMTModel loaded JA->EN")
+                self.tokenizer_ja_en = MarianTokenizer.from_pretrained(ja_en_path)
+                print("[DEBUG] MarianTokenizer loaded JA->EN")
+                self.model_ja_en.to(self.device)
+                print(f"[DEBUG] JA->EN model moved to device: {self.device}")
+                self.model_ja_en.eval()
+                self.logger.info(f"Loaded JA->EN model from {ja_en_path}")
+            except Exception as e:
+                print(f"[DEBUG] Failed to load JA->EN model: {e}")
+                raise
+        else:
+            print("[DEBUG] Skipping JA->EN model loading (Japanese translation disabled)")
 
         self.model_type = 'seq2seq'
         self.logger.info("All models loaded on %s" % self.device)
@@ -288,36 +306,34 @@ class TranslationInference:
     def chunk_sentence(self, sentence: str, direction: str = 'en-zh') -> List[str]:
         """
         Chunk long sentences into smaller parts if needed.
-        
-        Args:
-            sentence: Input sentence
-            direction: 'en-zh' or 'zh-en'
-            
-        Returns:
-            List of chunks
+        For short sentences, only one chunk is created.
         """
         max_length = self.inference_config['max_chunk_length']
         overlap = self.inference_config['chunk_overlap']
-        # Use the correct tokenizer for the direction
         tokenizer = self.get_tokenizer(direction)
         tokens = tokenizer.tokenize(sentence)
         if len(tokens) <= max_length:
             return [sentence]
-        # Split into chunks with overlap
+        # Split into chunks with overlap (only for long sentences)
         chunks = []
         words = sentence.split()
         i = 0
         while i < len(words):
             chunk_words = words[i:i + max_length]
-            chunks.append(' '.join(chunk_words))
+            chunk = ' '.join(chunk_words)
+            # Avoid adding duplicate chunks
+            if chunk not in chunks:
+                chunks.append(chunk)
             i += max_length - overlap
             if i >= len(words):
                 break
         return chunks
 
     def get_tokenizer(self, direction: str):
-        if direction in ['en-ja', 'ja-en', 'zh-ja', 'ja-zh']:
-            return self.tokenizer_nllb
+        if direction == 'en-ja':
+            return self.tokenizer_en_ja
+        elif direction == 'ja-en':
+            return self.tokenizer_ja_en
         elif direction == 'en-zh':
             return self.tokenizer_en_zh
         elif direction == 'zh-en':
@@ -326,8 +342,10 @@ class TranslationInference:
             raise ValueError(f"Unsupported direction: {direction}")
 
     def get_model(self, direction: str):
-        if direction in ['en-ja', 'ja-en', 'zh-ja', 'ja-zh']:
-            return self.model_nllb
+        if direction == 'en-ja':
+            return self.model_en_ja
+        elif direction == 'ja-en':
+            return self.model_ja_en
         elif direction == 'en-zh':
             return self.model_en_zh
         elif direction == 'zh-en':
@@ -351,13 +369,28 @@ class TranslationInference:
         tokenizer = self.get_tokenizer(direction)
 
         # NLLB language codes
+        # Treat staka/fugumt-en-ja and staka/fugumt-ja-en as MarianMT (no src_lang, no forced_bos_token_id)
+        if direction in ['en-ja', 'ja-en']:
+            inputs = tokenizer(text, return_tensors='pt', padding=True, truncation=True, max_length=512)
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            with torch.no_grad():
+                outputs = model.generate(
+                    **inputs,
+                    max_length=self.inference_config.get('max_length', 512),
+                    num_beams=self.inference_config.get('beam_size', 4),
+                    length_penalty=self.inference_config.get('length_penalty', 0.6),
+                    early_stopping=True
+                )
+            raw_output = tokenizer.decode(outputs[0], skip_special_tokens=False)
+            self.logger.info(f"[DEBUG] EN-JA/JA-EN translation raw output: {raw_output}")
+            translated = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            self.logger.info(f"[DEBUG] EN-JA/JA-EN translation final output: {translated}")
+            return translated
+        # NLLB directions (if you add NLLB models in future)
         lang_map = {
-            'en-ja': ('eng_Latn', 'jpn_Jpan'),
-            'ja-en': ('jpn_Jpan', 'eng_Latn'),
             'zh-ja': ('zho_Hans', 'jpn_Jpan'),
             'ja-zh': ('jpn_Jpan', 'zho_Hans'),
         }
-
         if direction in lang_map:
             src_lang, tgt_lang = lang_map[direction]
             inputs = tokenizer(text, return_tensors='pt', padding=True, truncation=True, max_length=512, src_lang=src_lang)
@@ -371,22 +404,24 @@ class TranslationInference:
                     length_penalty=self.inference_config.get('length_penalty', 0.6),
                     early_stopping=True
                 )
+            raw_output = tokenizer.decode(outputs[0], skip_special_tokens=False)
+            self.logger.info(f"[DEBUG] NLLB translation raw output: {raw_output}")
             translated = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            self.logger.info(f"[DEBUG] NLLB translation final output: {translated}")
             return translated
-        else:
-            # Marian directions
-            inputs = tokenizer(text, return_tensors='pt', padding=True, truncation=True, max_length=512)
-            inputs = {k: v.to(self.device) for k, v in inputs.items()}
-            with torch.no_grad():
-                outputs = model.generate(
-                    **inputs,
-                    max_length=self.inference_config.get('max_length', 512),
-                    num_beams=self.inference_config.get('beam_size', 4),
-                    length_penalty=self.inference_config.get('length_penalty', 0.6),
-                    early_stopping=True
-                )
-            translated = tokenizer.decode(outputs[0], skip_special_tokens=True)
-            return translated
+        # Marian directions (EN-ZH, ZH-EN)
+        inputs = tokenizer(text, return_tensors='pt', padding=True, truncation=True, max_length=512)
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        with torch.no_grad():
+            outputs = model.generate(
+                **inputs,
+                max_length=self.inference_config.get('max_length', 512),
+                num_beams=self.inference_config.get('beam_size', 4),
+                length_penalty=self.inference_config.get('length_penalty', 0.6),
+                early_stopping=True
+            )
+        translated = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        return translated
     
     def translate(self, text: str, direction: str = 'en-zh') -> str:
         """
@@ -406,15 +441,19 @@ class TranslationInference:
         if not text:
             return ""
         
-        # Split into sentences
+        # Split into sentences and remove duplicates
         sentences = self.split_into_sentences(text)
-        
+        unique_sentences = []
+        for s in sentences:
+            if s not in unique_sentences:
+                unique_sentences.append(s)
+
         translated_sentences = []
-        
-        for sentence in sentences:
+
+        for sentence in unique_sentences:
             # Chunk if necessary
             chunks = self.chunk_sentence(sentence, direction)
-            
+
             translated_chunks = []
             for chunk in chunks:
                 try:
@@ -423,7 +462,7 @@ class TranslationInference:
                 except Exception as e:
                     self.logger.error(f"Translation error for chunk: {e}")
                     translated_chunks.append(f"[Translation Error]")
-            
+
             # Combine chunks
             if direction in ['en-zh', 'zh-ja']:
                 translated_sentence = ''.join(translated_chunks)
@@ -433,10 +472,15 @@ class TranslationInference:
         
         # Combine sentences
         if direction in ['en-zh', 'zh-ja']:
-            result = '。'.join(translated_sentences)
+            # Remove duplicate sentences if present
+            unique_sentences = []
+            for s in translated_sentences:
+                if s not in unique_sentences:
+                    unique_sentences.append(s)
+            result = '。'.join(unique_sentences)
         else:
             result = '. '.join(translated_sentences)
-        
+
         return result
     
     def batch_translate(self, texts: List[str], batch_size: int = 8, direction: str = 'en-zh') -> List[str]:
